@@ -50,13 +50,6 @@ module RubyJob
 
         context 'on failure' do
           let(:runtime_error) { RuntimeError.new('boom') }
-          let(:worker_class) do
-            Class.new do
-              include Worker
-
-              def perform(_, _, _); end
-            end
-          end
 
           let(:a_worker_that_fails) do
             a_worker = worker_class.new
@@ -110,7 +103,7 @@ module RubyJob
 
         describe '.perform_async' do
           it 'returns an Job for a worker with the specified arguments, that will start now' do
-            job = Job.new(class_name: 'MyWorker', args: [1, 2, 3], start_at: Time.now)
+            job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: Time.now)
             expect(MyWorker.perform_async(1, 2, 3)).to eq(job)
           end
         end
@@ -118,7 +111,7 @@ module RubyJob
         describe '.perform_at' do
           it 'returns a Job for a worker with the specified arguments, that will start at the specified time' do
             later = Time.now + Rational(3.5, 1000)
-            job = Job.new(class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
+            job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
             expect(MyWorker.perform_at(later, 1, 2, 3)).to eq(job)
           end
         end
@@ -127,10 +120,32 @@ module RubyJob
           it 'returns a Job for a worker with the specified arguments, '\
             'that will start after the specified amount of time' do
             later = Time.now + Rational(3.5, 1000)
-            job = Job.new(class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
+            job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
             expect(MyWorker.perform_in(3.5, 1, 2, 3)).to eq(job)
           end
         end
+      end
+    end
+
+    describe '.jobstore=' do
+      it 'is defined' do
+        expect(described_class).to respond_to(:jobstore=).with(1).argument
+      end
+
+      it 'stores the supplied argument' do
+        jobstore = JobStore.new
+        described_class.jobstore = jobstore
+        expect(described_class.jobstore).to eq(jobstore)
+      end
+
+      it 'expects a JobStore object' do
+        expect { described_class.jobstore = 7 }.to raise_error(ArgumentError)
+      end
+    end
+
+    describe '.jobstore' do
+      it 'is defined' do
+        expect(described_class).to respond_to(:jobstore).with(0).arguments
       end
     end
   end
