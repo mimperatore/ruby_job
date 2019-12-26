@@ -2,8 +2,18 @@
 
 module RubyJob
   module Worker
-    def self.included(base)
-      base.extend(ClassMethods)
+    class << self
+      def included(base)
+        base.extend(ClassMethods)
+      end
+
+      attr_reader :jobstore
+
+      def jobstore=(jobstore)
+        raise ArgumentError, 'argument provided is not a JobStore' unless jobstore.is_a?(JobStore)
+
+        @jobstore = jobstore
+      end
     end
 
     def retry?(*)
@@ -29,16 +39,16 @@ module RubyJob
       end
 
       def perform_async(*args)
-        Job.new(class_name: name, args: args)
+        Job.new(worker_class_name: name, args: args)
       end
 
       def perform_at(at, *args)
-        Job.new(class_name: name, args: args, start_at: at)
+        Job.new(worker_class_name: name, args: args, start_at: at)
       end
 
       def perform_in(in_ms, *args)
         at = Time.now + Rational(in_ms, 1000)
-        Job.new(class_name: name, args: args, start_at: at)
+        Job.new(worker_class_name: name, args: args, start_at: at)
       end
     end
   end
