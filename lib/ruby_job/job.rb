@@ -8,12 +8,16 @@ module RubyJob
       worker_class_name:,
       args:,
       start_at: Time.now,
-      jobstore: default_jobstore(worker_class_name)
+      jobstore: RubyJob.send(:default_jobstore, worker_class_name)
     )
       @worker_class_name = worker_class_name
       @args = args
       @start_at = start_at
       @jobstore = jobstore
+    end
+
+    def perform
+      worker_class.perform(*@args)
     end
 
     def ==(other)
@@ -63,10 +67,18 @@ module RubyJob
 
     private
 
-    def default_jobstore(worker_class_name)
-      worker_class = worker_class_name.split('::').reduce(Module, :const_get)
-      class_with_jobstore_method = worker_class.respond_to?(:jobstore) ? worker_class : Worker
-      class_with_jobstore_method.jobstore
+    def worker_class
+      @worker_class ||= @worker_class_name.split('::').reduce(Module, :const_get)
+    end
+
+    class << self
+      private
+
+      def default_jobstore(worker_class_name)
+        worker_class = worker_class_name.split('::').reduce(Module, :const_get)
+        class_with_jobstore_method = worker_class.respond_to?(:jobstore) ? worker_class : Worker
+        class_with_jobstore_method.jobstore
+      end
     end
   end
 end

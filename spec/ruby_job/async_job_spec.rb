@@ -60,6 +60,13 @@ module RubyJob
       end
     end
 
+    describe '#perform' do
+      it 'calls #perform on the worker class, passing it the args' do
+        expect(MyWorker).to receive(:perform).with(1)
+        subject.perform
+      end
+    end
+
     describe '#==' do
       context 'equality' do
         it 'compares equal objects correctly' do
