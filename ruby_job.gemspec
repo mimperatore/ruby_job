@@ -35,4 +35,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rspec', '~> 3.9'
   spec.add_development_dependency 'rubocop', '~> 0.78'
   spec.add_development_dependency 'timecop', '~> 0.9'
+  spec.add_dependency 'pqueue', '~> 2.1'
 end

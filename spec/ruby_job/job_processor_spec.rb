@@ -30,8 +30,8 @@ module RubyJob
           job1 = Job.new(worker_class_name: 'MyWorker', args: nil)
           job2 = Job.new(worker_class_name: 'MyWorker', args: nil)
           allow(jobstore).to receive(:fetch).and_return(job1, job2, nil)
-          allow(job1).to receive(:perform).ordered
-          allow(job2).to receive(:perform).ordered
+          expect(job1).to receive(:perform).ordered
+          expect(job2).to receive(:perform).ordered
         end
 
         it "processes the jobs in the order returned by the jobstore's #fetch order" do

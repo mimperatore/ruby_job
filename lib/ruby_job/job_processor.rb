@@ -6,9 +6,9 @@ module RubyJob
       @jobstore = jobstore
     end
 
-    def run(wait: false)
+    def run(**options)
       loop do
-        job = @jobstore.fetch(wait: wait)
+        job = @jobstore.fetch(**options)
         job ? job.perform : break
       end
     end
