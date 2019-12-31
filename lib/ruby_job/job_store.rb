@@ -10,7 +10,19 @@ module RubyJob
       raise NotImplementedError
     end
 
+    def pause_at(_time)
+      raise NotImplementedError
+    end
+
     def fetch(*)
+      raise NotImplementedError
+    end
+
+    def size
+      raise NotImplementedError
+    end
+
+    def to_a
       raise NotImplementedError
     end
   end
