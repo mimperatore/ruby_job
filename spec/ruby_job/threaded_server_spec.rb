@@ -14,7 +14,7 @@ module RubyJob
     let(:num_threads) { 1 }
     let(:jobstore) { InMemoryJobStore.new }
     let(:jobs) do
-      10.times.map { |i| MyWorker.perform_at(now + 0.01 * i) }
+      10.times.map { |i| MyWorker.perform_at(now + i) }
     end
 
     subject do
@@ -37,12 +37,15 @@ module RubyJob
     end
 
     describe '#start' do
+      before(:each) do
+        jobs.each do |job|
+          expect(job).to receive(:perform)
+        end
+      end
+
       context 'single thread' do
         it 'eventually runs all jobs' do
-          jobstore.to_a.each do |job|
-            expect(job).to receive(:perform)
-          end
-          subject.stop_at(now + 1.5)
+          subject.stop_at(now + 15)
           Timecop.travel(now + 100)
           subject.start.join
         end
@@ -52,10 +55,7 @@ module RubyJob
         let(:num_threads) { 5 }
 
         it 'eventually runs all jobs' do
-          jobstore.to_a.each do |job|
-            expect(job).to receive(:perform)
-          end
-          subject.stop_at(now + 1.5)
+          subject.stop_at(now + 15)
           Timecop.travel(now + 100)
           subject.start.join
         end
@@ -63,11 +63,9 @@ module RubyJob
     end
 
     describe '#stop_at' do
-      it 'stops processing jobs remaining in the jobstore with :start_at after the specified time' do
-        subject.stop_at(now + 0.01 * 5)
-        Timecop.travel(now + 100)
-        subject.start(wait: true).join
-        expect(jobstore.to_a).to match_array(jobs[6..9])
+      it 'instructs the jobstore to stop processing jobs as of the specified time' do
+        expect(jobstore).to receive(:pause_at).with(now)
+        subject.stop_at(now)
       end
     end
 

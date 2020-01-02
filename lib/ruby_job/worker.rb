@@ -49,16 +49,16 @@ module RubyJob
       end
 
       def perform_async(*args)
-        Job.new(worker_class_name: name, args: args).tap { |job| jobstore.enqueue(job) }
+        Job.new(worker_class_name: name, args: args).enqueue
       end
 
       def perform_at(at, *args)
-        Job.new(worker_class_name: name, args: args, start_at: at).tap { |job| jobstore.enqueue(job) }
+        Job.new(worker_class_name: name, args: args, start_at: at).enqueue
       end
 
       def perform_in(in_ms, *args)
-        at = Time.now + Rational(in_ms, 1000)
-        Job.new(worker_class_name: name, args: args, start_at: at).tap { |job| jobstore.enqueue(job) }
+        at = Time.now + in_ms.to_f / 1000
+        Job.new(worker_class_name: name, args: args, start_at: at).enqueue
       end
     end
   end
