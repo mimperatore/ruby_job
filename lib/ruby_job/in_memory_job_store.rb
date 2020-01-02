@@ -1,20 +1,26 @@
 # frozen_string_literal: true
 
+require 'forwardable'
+require 'fibonacci_heap'
+require 'digest/sha1'
+
 module RubyJob
   class InMemoryJobStore < JobStore
     attr_reader :pause_starting_at
 
     def initialize
       @semaphore = Mutex.new
-      @semaphore.synchronize { @jobs_to_drop = {} }
+      @next_uuid = 0
     end
 
     def enqueue(job)
+      raise 'job does not have an assigned uuid' unless job.uuid
+
       @semaphore.synchronize { queue.push(job) }
     end
 
     def dequeue(job)
-      @semaphore.synchronize { @jobs_to_drop[job.to_json] = job }
+      @semaphore.synchronize { queue.delete(job) }
     end
 
     def pause_at(time)
@@ -26,32 +32,25 @@ module RubyJob
     end
 
     def size
-      to_a.size
+      queue.size
     end
 
-    def to_a
-      @semaphore.synchronize { queue.to_a - @jobs_to_drop.values }
+    def next_uuid
+      @semaphore.synchronize { @next_uuid += 1 }
     end
 
     private
 
     def queue
-      @queue ||= PQueue.new do |a, b|
-        b.start_at <=> a.start_at
-      end
+      @queue ||= JobPriorityQueue.new
     end
 
     def paused_before?(time)
       @pause_starting_at && @pause_starting_at <= time
     end
 
-    def drop_dequeued
-      queue.pop while (top = queue.top) && @jobs_to_drop.delete(top.to_json)
-    end
-
     def fetch_next
       @semaphore.synchronize do
-        drop_dequeued
         queue.pop if (top = queue.top) && top.start_at <= [Time.now, @pause_starting_at].compact.min
       end
     end
@@ -65,6 +64,38 @@ module RubyJob
         sleep(delay)
       end
       job
+    end
+
+    class JobPriorityQueue
+      extend Forwardable
+
+      def_delegators :@pqueue, :size
+
+      def initialize
+        @pqueue = FibonacciHeap::Heap.new
+      end
+
+      def push(job)
+        @pqueue.insert(job, key_for(job))
+      end
+
+      def pop
+        @pqueue.pop
+      end
+
+      def top
+        @pqueue.min
+      end
+
+      def delete(job)
+        @pqueue.delete(job)
+      end
+
+      private
+
+      def key_for(job)
+        job.start_at.to_f.round(3) + job.uuid.to_f / 1_000
+      end
     end
   end
 end

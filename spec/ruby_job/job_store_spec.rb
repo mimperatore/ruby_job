@@ -32,9 +32,9 @@ module RubyJob
       end
     end
 
-    describe '#to_a' do
+    describe '#next_uuid' do
       it 'raises NotImplementedError' do
-        expect { subject.to_a }.to raise_error(NotImplementedError)
+        expect { subject.next_uuid }.to raise_error(NotImplementedError)
       end
     end
   end

@@ -12,6 +12,23 @@ module RubyJob
       end
     end
 
+    let(:worker_class_name) { 'MyWorker' }
+    let(:args) { [1] }
+    let(:now) { Time.now }
+    let(:start_at) { now }
+    let(:expected_hash) do
+      {
+        'json_class' => described_class.name,
+        'data' => {
+          'worker_class_name' => worker_class_name,
+          'args_json' => JSON.dump(args),
+          'start_at' => Time.at(start_at.to_f.round(3)).iso8601(9),
+          'uuid' => nil
+        }
+      }
+    end
+    let(:jobstore) { JobStore.new }
+
     around(:each) do |example|
       Object.const_set('MyWorker', worker_class)
       example.run
@@ -19,29 +36,27 @@ module RubyJob
     end
 
     before(:each) do
-      Timecop.freeze(Time.now)
+      Timecop.freeze(now)
     end
 
-    let(:worker_class_name) { 'MyWorker' }
-    let(:args) { [1] }
-    let(:start_at) { Time.now }
-    let(:expected_hash) do
-      {
-        'json_class' => described_class.name,
-        'data' => {
-          'worker_class_name' => worker_class_name,
-          'args_json' => JSON.dump(args),
-          'start_at' => start_at.iso8601(9)
-        }
-      }
+    before(:each) do
+      allow(MyWorker).to receive(:jobstore).and_return(jobstore)
+      allow(jobstore).to receive(:enqueue).with(subject)
+      allow(jobstore).to receive(:dequeue).with(subject)
+      allow(jobstore).to receive(:next_uuid).and_return(1)
     end
 
     subject { described_class.new(worker_class_name: worker_class_name, args: args, start_at: start_at) }
 
     describe '#initialize' do
-      it 'defaults start_time to Time.now' do
+      it 'defaults start_time to Time.now, to millisecond precision' do
         job_without_start_at = described_class.new(worker_class_name: worker_class_name, args: args)
-        expect(job_without_start_at.start_at).to eq(Time.now)
+        expect(job_without_start_at.start_at).to eq(Time.at(now.to_f.round(3)))
+      end
+
+      it 'rounds start_time to millisecond precision' do
+        job = described_class.new(worker_class_name: worker_class_name, args: args, start_at: Time.at(1.1234567))
+        expect(job.start_at).to eq(Time.at(1.123))
       end
 
       it "defaults jobstore to the worker class' jobstore, if it exists" do
@@ -128,13 +143,6 @@ module RubyJob
     end
 
     describe '#enqueue' do
-      let(:jobstore) { JobStore.new }
-
-      before(:each) do
-        allow(MyWorker).to receive(:jobstore).and_return(jobstore)
-        allow(jobstore).to receive(:enqueue).with(subject)
-      end
-
       it 'enqueues the job into the jobstore' do
         expect(jobstore).to receive(:enqueue).with(subject)
         subject.enqueue
@@ -145,21 +153,12 @@ module RubyJob
         expect { subject.enqueue }.to raise_error(RuntimeError, /already been enqueued/)
       end
 
-      it "returns what the jobstore's #enqueue method returns" do
-        allow(jobstore).to receive(:enqueue).and_return(7)
-        expect(subject.enqueue).to eq(7)
+      it 'returns self' do
+        expect(subject.enqueue).to be(subject)
       end
     end
 
     describe '#dequeue' do
-      let(:jobstore) { JobStore.new }
-
-      before(:each) do
-        allow(MyWorker).to receive(:jobstore).and_return(jobstore)
-        allow(jobstore).to receive(:enqueue).with(subject)
-        allow(jobstore).to receive(:dequeue).with(subject)
-      end
-
       it 'dequeues the job from the jobstore' do
         subject.enqueue
         expect(jobstore).to receive(:dequeue).with(subject)
@@ -176,21 +175,19 @@ module RubyJob
         expect { subject.dequeue }.to raise_error(RuntimeError, /not queued/)
       end
 
-      it "returns what the jobstore's #dequeue method returns" do
+      it 'sets the uuid to nil' do
         subject.enqueue
-        allow(jobstore).to receive(:dequeue).and_return(7)
-        expect(subject.dequeue).to eq(7)
+        subject.dequeue
+        expect(subject.uuid).to be_nil
+      end
+
+      it 'returns self' do
+        subject.enqueue
+        expect(subject.dequeue).to be(subject)
       end
     end
 
     describe '#fetch' do
-      let(:jobstore) { JobStore.new }
-
-      before(:each) do
-        allow(MyWorker).to receive(:jobstore).and_return(jobstore)
-        allow(jobstore).to receive(:fetch)
-      end
-
       it 'fetches the next job from the jobstore' do
         expect(jobstore).to receive(:fetch)
         subject.fetch
