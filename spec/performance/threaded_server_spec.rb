@@ -12,11 +12,9 @@ module RubyJob
 
     let(:now) { Time.now }
     let(:num_threads) { 1 }
-    let(:jobstore) { InMemoryJobStore.new }
     let(:num_jobs) { 1 }
-    let(:jobs) do
-      num_jobs.times.map { |_i| Job.new(worker_class_name: 'MyWorker', args: [], start_at: now) }
-    end
+    let(:jobstore) { InMemoryJobStore.new }
+    let(:jobs) { num_jobs.times.map { MyWorker.perform_async } }
 
     subject do
       described_class.new(num_threads, jobstore)
@@ -27,7 +25,8 @@ module RubyJob
     end
 
     before(:each) do
-      jobs.each { |job| jobstore.enqueue(job) }
+      MyWorker.jobstore = InMemoryJobStore.new
+      jobs
     end
 
     around(:each) do |example|
