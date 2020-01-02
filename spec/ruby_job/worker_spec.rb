@@ -97,30 +97,37 @@ module RubyJob
       end
 
       context 'asynchronous execution' do
+        let(:jobstore) { double('jobstore') }
+
         before(:each) do
           Timecop.freeze(Time.now)
+          allow(MyWorker).to receive(:jobstore).and_return(jobstore)
         end
 
         describe '.perform_async' do
-          it 'returns an Job for a worker with the specified arguments, that will start now' do
+          it 'enqueues and returns a Job for a worker with the specified arguments, that will start now' do
             job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: Time.now)
+            expect(jobstore).to receive(:enqueue).with(job)
             expect(MyWorker.perform_async(1, 2, 3)).to eq(job)
           end
         end
 
         describe '.perform_at' do
-          it 'returns a Job for a worker with the specified arguments, that will start at the specified time' do
+          it 'enqueues and returns a Job for a worker with the specified arguments, '\
+            'that will start at the specified time' do
             later = Time.now + Rational(3.5, 1000)
             job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
+            expect(jobstore).to receive(:enqueue).with(job)
             expect(MyWorker.perform_at(later, 1, 2, 3)).to eq(job)
           end
         end
 
         describe '.perform_in' do
-          it 'returns a Job for a worker with the specified arguments, '\
+          it 'enqueues and returns a Job for a worker with the specified arguments, '\
             'that will start after the specified amount of time' do
             later = Time.now + Rational(3.5, 1000)
             job = Job.new(worker_class_name: 'MyWorker', args: [1, 2, 3], start_at: later)
+            expect(jobstore).to receive(:enqueue).with(job)
             expect(MyWorker.perform_in(3.5, 1, 2, 3)).to eq(job)
           end
         end
@@ -128,24 +135,68 @@ module RubyJob
     end
 
     describe '.jobstore=' do
-      it 'is defined' do
-        expect(described_class).to respond_to(:jobstore=).with(1).argument
+      context 'on Worker' do
+        it 'is defined' do
+          expect(Worker).to respond_to(:jobstore=).with(1).argument
+        end
+
+        it 'stores the supplied argument' do
+          jobstore = JobStore.new
+          Worker.jobstore = jobstore
+          expect(Worker.jobstore).to eq(jobstore)
+        end
+
+        it 'expects a JobStore object' do
+          expect { Worker.jobstore = 7 }.to raise_error(ArgumentError)
+        end
       end
 
-      it 'stores the supplied argument' do
-        jobstore = JobStore.new
-        described_class.jobstore = jobstore
-        expect(described_class.jobstore).to eq(jobstore)
-      end
+      context 'on the including class' do
+        it 'is defined' do
+          expect(MyWorker).to respond_to(:jobstore=).with(1).argument
+        end
 
-      it 'expects a JobStore object' do
-        expect { described_class.jobstore = 7 }.to raise_error(ArgumentError)
+        it 'stores the supplied argument' do
+          jobstore = JobStore.new
+          MyWorker.jobstore = jobstore
+          expect(MyWorker.jobstore).to eq(jobstore)
+        end
+
+        it 'expects a JobStore object' do
+          expect { MyWorker.jobstore = 7 }.to raise_error(ArgumentError)
+        end
       end
     end
 
     describe '.jobstore' do
-      it 'is defined' do
-        expect(described_class).to respond_to(:jobstore).with(0).arguments
+      context 'on Worker' do
+        it 'is defined' do
+          expect(Worker).to respond_to(:jobstore).with(0).arguments
+        end
+
+        it 'returns the value set by .jobstore=' do
+          jobstore = JobStore.new
+          Worker.jobstore = jobstore
+          expect(Worker.jobstore).to eq(jobstore)
+        end
+      end
+
+      context 'on the including class' do
+        it 'is defined' do
+          expect(MyWorker).to respond_to(:jobstore).with(0).arguments
+        end
+
+        it 'returns the value set by .jobstore=' do
+          jobstore = JobStore.new
+          MyWorker.jobstore = jobstore
+          expect(MyWorker.jobstore).to eq(jobstore)
+        end
+
+        it "returns the value set by Worker.jobstore=, if the including class didn't set it explicitly" do
+          jobstore = JobStore.new
+          Worker.jobstore = jobstore
+          expect(MyWorker.jobstore).to eq(jobstore)
+        end
       end
     end
   end

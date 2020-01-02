@@ -33,22 +33,32 @@ module RubyJob
     end
 
     module ClassMethods
+      def jobstore=(jobstore)
+        raise ArgumentError, 'argument provided is not a JobStore' unless jobstore.is_a?(JobStore)
+
+        @jobstore = jobstore
+      end
+
+      def jobstore
+        @jobstore || Worker.jobstore
+      end
+
       def perform(*args)
         worker = new
         worker.send(:do_perform, *args)
       end
 
       def perform_async(*args)
-        Job.new(worker_class_name: name, args: args)
+        Job.new(worker_class_name: name, args: args).tap { |job| jobstore.enqueue(job) }
       end
 
       def perform_at(at, *args)
-        Job.new(worker_class_name: name, args: args, start_at: at)
+        Job.new(worker_class_name: name, args: args, start_at: at).tap { |job| jobstore.enqueue(job) }
       end
 
       def perform_in(in_ms, *args)
         at = Time.now + Rational(in_ms, 1000)
-        Job.new(worker_class_name: name, args: args, start_at: at)
+        Job.new(worker_class_name: name, args: args, start_at: at).tap { |job| jobstore.enqueue(job) }
       end
     end
   end
