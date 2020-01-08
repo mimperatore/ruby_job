@@ -26,8 +26,10 @@ module RubyJob
       @attempt ||= 1
       perform(*args)
     rescue StandardError => e
-      raise unless retry?(attempt: @attempt, error: e)
+      (do_retry, retry_delay) = retry?(attempt: @attempt, error: e)
+      raise unless do_retry
 
+      sleep(retry_delay || 0)
       @attempt += 1
       retry
     end

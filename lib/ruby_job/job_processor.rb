@@ -8,7 +8,7 @@ module RubyJob
 
     def run(**options)
       loop do
-        job = @jobstore.fetch(**options)
+        job = @jobstore.set(**options).fetch
         job ? job.perform : break
       end
     end

@@ -40,9 +40,10 @@ module RubyJob
       end
 
       context 'waiting for jobs' do
-        it "uses the jobstore's #fetch(wait: true) method" do
-          expect(jobstore).to receive(:fetch).with(wait: true)
-          subject.run(wait: true)
+        it "uses the jobstore's #set, before calling #fetch" do
+          expect(jobstore).to receive(:set).with(wait: true, wait_delay: 0.7).ordered.and_call_original
+          expect(jobstore).to receive(:fetch).ordered
+          subject.run(wait: true, wait_delay: 0.7)
         end
       end
     end

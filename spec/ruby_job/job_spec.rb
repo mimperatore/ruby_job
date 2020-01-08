@@ -186,12 +186,5 @@ module RubyJob
         expect(subject.dequeue).to be(subject)
       end
     end
-
-    describe '#fetch' do
-      it 'fetches the next job from the jobstore' do
-        expect(jobstore).to receive(:fetch)
-        subject.fetch
-      end
-    end
   end
 end

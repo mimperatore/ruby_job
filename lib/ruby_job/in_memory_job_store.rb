@@ -9,8 +9,10 @@ module RubyJob
     attr_reader :pause_starting_at
 
     def initialize
+      super
       @semaphore = Mutex.new
       @next_uuid = 0
+      @pause_starting_at = nil
     end
 
     def enqueue(job)
@@ -27,8 +29,8 @@ module RubyJob
       @pause_starting_at = time
     end
 
-    def fetch(wait: false, delay: 0.5)
-      wait ? fetch_next_or_wait(delay) : fetch_next
+    def fetch
+      @options[:wait] ? fetch_next_or_wait : fetch_next
     end
 
     def size
@@ -55,13 +57,13 @@ module RubyJob
       end
     end
 
-    def fetch_next_or_wait(delay)
+    def fetch_next_or_wait
       job = nil
       loop do
         job = fetch_next
-        break if job || paused_before?(Time.now)
+        break if job || (paused_before?(Time.now) && !@options[:wait])
 
-        sleep(delay)
+        sleep(@options[:wait_delay])
       end
       job
     end

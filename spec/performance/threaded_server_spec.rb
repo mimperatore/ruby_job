@@ -19,7 +19,7 @@ module RubyJob
     let(:jobs) { num_jobs.times.map { MyWorker.perform_async } }
 
     subject do
-      described_class.new(num_threads, jobstore)
+      described_class.new(num_threads: num_threads, jobstore: jobstore)
     end
 
     before(:each) do
@@ -52,7 +52,7 @@ module RubyJob
 
             (ENV['CI'] == 'true' ? 'ci' : 'test').tap do |env|
               it "processes everything in under #{EXPECTED_PERFORMANCE["#{j}/#{t}/#{env}"]} seconds" do
-                subject.stop_at(now + 100)
+                subject.set(wait: false)
                 Timecop.travel(now + 100)
                 starting_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
                 subject.start.join

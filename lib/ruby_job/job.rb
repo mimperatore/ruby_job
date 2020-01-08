@@ -76,10 +76,6 @@ module RubyJob
       self
     end
 
-    def fetch
-      @jobstore.fetch
-    end
-
     private
 
     def worker_class

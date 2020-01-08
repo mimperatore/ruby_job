@@ -2,6 +2,18 @@
 
 module RubyJob
   class JobStore
+    def initialize
+      @options = {
+        wait: true,
+        wait_delay: 0.5
+      }
+    end
+
+    def set(**options)
+      @options.merge!(**options)
+      self
+    end
+
     def enqueue(_job)
       raise NotImplementedError
     end

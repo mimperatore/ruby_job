@@ -2,27 +2,48 @@
 
 module RubyJob
   class ThreadedServer
-    def initialize(num_threads, jobstore)
+    attr_reader :options
+
+    def initialize(num_threads:, jobstore:)
       @num_threads = num_threads
       @jobstore = jobstore
+      @options = { wait: true, wait_delay: 0.5 }
     end
 
-    def start(wait: true)
+    def set(**options)
+      @options.merge!(options)
+      self
+    end
+
+    def start
       Thread.new do
         @num_threads.times.map do
           Thread.new do
-            JobProcessor.new(@jobstore).run(wait: wait)
+            JobProcessor.new(@jobstore).run(**@options)
           end
         end.each(&:join)
       end
     end
 
-    def stop_at(time)
+    def halt_at(time)
       @jobstore.pause_at(time)
+      self
     end
 
-    def stop
-      stop_at(Time.now)
+    def halt
+      halt_at(Time.now)
+      self
+    end
+
+    def resume
+      halt_at(nil)
+      self
+    end
+
+    def resume_until(time)
+      resume
+      halt_at(time)
+      self
     end
   end
 end
