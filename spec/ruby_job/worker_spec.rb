@@ -108,8 +108,7 @@ module RubyJob
           it 'waits between retries, if #retry? does return a retry delay' do
             4.times do |i|
               expect(a_worker_that_fails).to receive(:retry?)
-                .with(hash_including(attempt: i + 1)).ordered.and_return(i < 3)
-                .and_return([i < 3, 0.7])
+                .with(hash_including(attempt: i + 1)).ordered.and_return([i < 3, 0.7])
             end
             expect(a_worker_that_fails).to receive(:sleep).with(0.7).exactly(3).times
             expect { MyWorker.perform(1, 2, 3) }.to raise_error('boom')
