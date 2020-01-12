@@ -11,7 +11,7 @@ only supports an [In-Memory Job Store](https://github.com/mimperatore/ruby_job/b
 implemented through a fast [Fibonacci Heap](https://github.com/mudge/fibonacci_heap).
 
 The initial version, which supports only a single queue, runs **200% faster than Sucker Punch**, capable of processing **1,000,000** simple jobs in **28 seconds**
-vs. Sucker Punch's 59 seconds (measured on on a MacBook Pro 2.3GHz with 16GB of RAM).
+vs. Sucker Punch's 59 seconds (measured on a MacBook Pro 2.3GHz with 16GB of RAM).
 
 Additional features are in the works, including:
 - Support for multiple queues & queue priorities
@@ -102,6 +102,27 @@ To do so:
 job.dequeue
 ```
 
+### Job arguments
+Your Job class' `#perform` method signature is:
+```ruby
+  def perform(*args)
+  end
+```
+
+When you invoke `#perform_async` (or similar methods), the arguments passed in will get sent to `#perform`.
+
+For example, `MyWorker.perform_async(1, 'hello world!', x: 7)` will end up calling `perform(1, 'hello world!', x: 7)` when the job runs.
+
+**Note**: Whether and how the arguments are serialized depends on the JobStore being used.  `RubyJob::InMemoryJobStore`, the only JobStore
+currently shipped out of the box with this gem, has no need to serialize the arguments, given that everything runs in a single operating system
+process.  However, keep in mind that the `Job` class, which is used to represent instances of jobs to run, defines methods `#to_json` and
+`.json_create(hash)` which use `JSON.dump` and `JSON.parse`, respectively, to marshall the arguments.  If you're going to implement
+your own JobStore, feel free to avail yourself of these methods.
+
+**Pro Tip**: In order to ensure your job code is portable across different JobStore implementations (e.g. in case at some point you think
+you'll need a persistent backing store such as Redis or Cassandra to keep track of your mission critical jobs), ensure the arguments
+you pass serialize and deserialize as you'd expect.
+
 ### Schedule a Job for execution (asynchronously)
 
 **Note:** Jobs are scheduled to nearest **millisecond** of the specified start time.
@@ -135,12 +156,13 @@ server = RubyJob::ThreadedServer.new(num_threads: 10, jobstore: MyWorker.jobstor
 
 #### Server options
 ```ruby
-server.set(wait: true)
+server.set(wait: true, wait_delay: 0.5)
 ```
 
-- `wait`[boolean]: determines whether the server should exit when there aren't any processable jobs in the queue.  Defaults to `true`.
-- `wait_delay`[float]: number of seconds to wait (sleep).  Defaults to `0.5`.
+- `wait`[boolean]: determines whether the server should wait or exit when there aren't any processable jobs in the queue.  Defaults to `true`.
+- `wait_delay`[float]: if the server is going to wait, the number of seconds to delay before looking for jobs again.  Defaults to `0.5`.
 
+**Note:** The `wait`/`wait_delay` parameters apply independently to each worker thread.
 
 #### Starting the server
 Queued jobs will only run when a Server, attached to the JobStore the jobs have been enqueued to, has been started.
@@ -180,15 +202,15 @@ that's been halted for a significant amount of time will pick up old jobs that m
 ensure you take that into account in your job processing code if you care about this situation.
 
 ### Retries
-Jobs will be not be retried by default.  To have jobs retry, the worker class must define a `retry?` method that
-returns a tuple indicating whether the job should be retried, and how long the retry delay should be: [do_retry, retry_delay]
+By default, jobs that raise errors will be not be retried by default.  To have jobs retry, the worker class must define a `retry?` method that
+returns a tuple indicating whether the job should be retried, and how long the retry delay should be: `[do_retry, retry_delay]`
 ```ruby
   MAX_RETRIES = 5
   INITIAL_RETRY_DELAY = 0.5
 
   def retry?(attempt:, error:)
     # determine whether a retry is required, based on the attempt number and error passed in
-    do_retry = error.is_a?(RetriableError) && (attempt < MAX_RETRIES)
+    do_retry = error.is_a?(MyRetriableError) && (attempt < MAX_RETRIES)
 
     [do_retry, INITIAL_RETRY_DELAY * 2**(attempt-1)] # exponential backoff
   end
