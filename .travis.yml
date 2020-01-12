@@ -10,6 +10,8 @@ language: ruby
 os: linux
 
 rvm:
+  - 2.5.7
+  - 2.6.5
   - 2.7.0
 
 before_install:
