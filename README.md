@@ -10,15 +10,16 @@ The current version behaves much like [Sucker Punch](https://github.com/brandonh
 only supports an [In-Memory Job Store](https://github.com/mimperatore/ruby_job/blob/master/lib/ruby_job/in_memory_job_store.rb)
 implemented through a fast [Fibonacci Heap](https://github.com/mudge/fibonacci_heap).
 
-The initial version, which supports only a single queue, runs **200% faster than Sucker Punch**, capable of processing **1,000,000** simple jobs in **28 seconds**
+The initial version runs **200% faster than Sucker Punch**, capable of processing **1,000,000** simple jobs in **28 seconds**
 vs. Sucker Punch's 59 seconds (measured on a MacBook Pro 2.3GHz with 16GB of RAM).
 
 Additional features are in the works, including:
-- Support for multiple queues & queue priorities
+- Support for external configuration of multiple queues & queue priorities
 - Persistent Job Stores for:
   - Redis
   - Cassandra
 - Batches & Job nesting
+- Make retries more thread efficient, by avoiding `sleep` calls
 
 ## Installation
 
@@ -63,6 +64,60 @@ server = RubyJob::ThreadedServer.new(num_threads: 10, jobstore: MyWorker.jobstor
 server_thread = server.start
 server_thread.join
 ```
+
+### Job Stores
+A _Job Store_ is an abstraction which allows us to keep track of the various jobs your application wants to run.
+
+The _abstract_ class `JobStore` defines the following methods (each of which raises `NotImplementedError`) that
+must be defined in the subclass:
+- enqueue(job)
+- dequeue(job)
+- fetch
+- size
+- pause_at(time)
+- next_uuid
+
+#### #enqueue(job)
+The `enqueue` method is responsible for adding the specified job to the Job Store.  It is an error to
+attempt to enqueue a job that is already enqeueued.
+
+#### #dequeue(job)
+The `dequeue` method is responsible for removing the specified job from the Job Store.  It is an error to
+attempt to dequeue a job that has never been enqueued, or has been dequeued.
+
+#### #fetch
+The `fetch` method is responsible for fetching the next job that needs to run from the Job Store.
+The _"next job to run"_ is defined as being the job with the earliest `start_at` time that:
+- is less than or equal to `Time.now`
+- is less than or equal to the time specified by the most recent invocation of `#pause_at`
+
+When no job matches these conditions, `fetch` will wait until such conditions are met, by _sleeping_
+the amount of time specified by the `:wait_delay` option and retrying, if the `:wait` option is set, or
+will return `nil` otherwise.
+
+#### size
+The `size` method returns the number of jobs presently being tracked in the Job Store.
+
+#### pause_at(time)
+The `pause_at` method effects the behaviour of `#fetch`, as defined above.  Essentially, it causes
+the Job Store to behave as if it's empty when the time specified is reached.  Passing `nil` 
+unpauses the Job Store.
+
+#### next_uuid
+The `next_uuid` method must return a unique identifier that will be assigned to the next job to be
+enqueued to the Job Store.  The identifier must be unique across the timespan that the Job Store
+guarantees job tracking.  For example, in the `InMemoryJobStore` implementation, the `next_uuid`
+is simply an auto-incrementing integer stored in the JobStore's instance itself.  This is sufficient
+because the `InMemoryJobStore` only guarantees tracking of jobs during the lifespan of the currently
+running process.  In an implementation that were to guarantee, say, tracking across server restarts
+for many weeks or months in a high-volume environment, the identifier would likely need to be closer
+to a true universally unique identifier.
+
+**Note**: Due to its dynamic and non-statically-typed nature, Ruby doesn't provide true _abstract_ classes,
+but implementing the `JobStore` class this way does help simplify and improve tests for classes that have
+dependencies on `JobStore` subclasses.  In particular, by leveraging [_RSpec_'s verify_partial_doubles
+capabilities](https://relishapp.com/rspec/rspec-mocks/docs/verifying-doubles/partial-doubles),
+tests can mock a `JobStore` instance and rely on _RSpec_ to verify that only valid methods have been called.
 
 ### Setting up the default JobStore
 Jobs are enqueued to the default JobStore of the worker class:
@@ -225,6 +280,9 @@ change sooner rather than later.
 
 **Note:** the retry delay is the time between the end of the last attempt and the start of the new attempt
 
+## Blog Posts
+- [Adding support for queues to RubyJob](https://dev.to/marcoimperatore/adding-support-for-queues-to-rubyjob-45kd)
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an
@@ -246,3 +304,9 @@ The gem is available as open source under the terms of the [GNU Lesser General P
 
 Everyone interacting in the RubyJob project’s codebases, issue trackers, chat rooms and mailing lists is expected to follow
 the [code of conduct](https://github.com/mimperatore/ruby_job/blob/master/CODE_OF_CONDUCT.md).
+
+## Author
+
+Marco Imperatore, CEO, i-Clique Inc.
+- Twitter: [@marcoimperatore](https://twitter.com/marcoimperatore)
+- LinkedIn: [@marcoimperatore](https://www.linkedin.com/in/marcoimperatore/)
